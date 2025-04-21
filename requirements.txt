@@ -1,0 +1,11 @@
+ipykernel
+langchain
+python-dotenv
+langchain_community
+pymupdf
+pypdf
+langchain-text-splitters
+langchain_huggingface
+faiss-cpu
+streamlit
+langchain_groq
