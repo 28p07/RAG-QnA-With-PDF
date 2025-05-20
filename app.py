@@ -24,22 +24,42 @@ embeddings=HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 st.title("Conversational RAG With PDF uploads and chat history")
 st.write("Upload Pdf's and chat with their content")
 
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
 ## Input the Groq API Key
-api_key=st.text_input("Enter your Groq API key:",type="password")
+with st.sidebar:
+    st.header("API KEY")
+    api_key=st.text_input("Enter your Groq API key:",type="password")
+
 
 ## Check if groq api key is provided
 if api_key:
+    
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    for message in st.session_state.messages:
+        with st.chat_message(message['role']):
+            st.markdown(message['content'])
+
     llm=ChatGroq(groq_api_key=api_key,model_name="Gemma2-9b-It")
 
     ## chat interface
-
-    session_id=st.text_input("Session ID",value="default_session")
+    with st.sidebar:
+        st.header("Upload PDF File")
+        session_id=st.text_input("Session ID",value="default_session")
+    
     ## statefully manage chat history
 
     if 'store' not in st.session_state:
         st.session_state.store={}
+        
+    with st.sidebar:
+        st.header("Upload PDF File")
+        uploaded_files=st.file_uploader("Choose A PDf file",type="pdf",accept_multiple_files=True)
 
-    uploaded_files=st.file_uploader("Choose A PDf file",type="pdf",accept_multiple_files=True)
     ## Process uploaded  PDF's
     if uploaded_files:
         documents=[]
@@ -76,8 +96,6 @@ if api_key:
         
         history_aware_retriever=create_history_aware_retriever(llm,retriever,contextualize_q_prompt)
 
-        ## Answer question
-
         # Answer question
         system_prompt = (
                 "You are an assistant for question-answering tasks. "
@@ -99,7 +117,7 @@ if api_key:
         question_answer_chain=create_stuff_documents_chain(llm,qa_prompt)
         rag_chain=create_retrieval_chain(history_aware_retriever,question_answer_chain)
 
-        def get_session_history(session:str)->BaseChatMessageHistory:
+        def get_session_history(session_id:str)->BaseChatMessageHistory:
             if session_id not in st.session_state.store:
                 st.session_state.store[session_id]=ChatMessageHistory()
             return st.session_state.store[session_id]
@@ -111,17 +129,21 @@ if api_key:
             output_messages_key="answer"
         )
 
-        user_input = st.text_input("Your question:")
+
+
+        user_input = st.chat_input("Your question:")
         if user_input:
-            session_history=get_session_history(session_id)
+            st.session_state.messages.append({"role": "user", "content": user_input})
+
+            with st.chat_message("user"):
+                st.markdown(user_input)
+            
             response = conversational_rag_chain.invoke(
                 {"input": user_input},
                 config={
                     "configurable": {"session_id":session_id}
                 },  # constructs a key "abc123" in `store`.
             )
-            st.write(st.session_state.store)
-            st.write("Assistant:", response['answer'])
-            st.write("Chat History:", session_history.messages)
-else:
-    st.warning("Please enter the GRoq API Key")
+            st.session_state.messages.append({"role": "assistant", "content": response['answer']})
+            with st.chat_message("assistant"):
+                st.markdown(response['answer'])
